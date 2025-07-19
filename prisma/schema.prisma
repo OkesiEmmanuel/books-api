@@ -1,0 +1,45 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  password  String
+  books     Book[]
+  comments  Comment[]
+  followers Follower[] @relation("Follower")
+  following Follower[] @relation("Following")
+}
+
+model Book {
+  id          String    @id @default(uuid())
+  title       String
+  author      String
+  description String?
+  createdBy   String
+  user        User      @relation(fields: [createdBy], references: [id])
+  comments    Comment[]
+}
+
+model Comment {
+  id      String @id @default(uuid())
+  content String
+  bookId  String
+  userId  String
+  book    Book   @relation(fields: [bookId], references: [id])
+  user    User   @relation(fields: [userId], references: [id])
+}
+
+model Follower {
+  id          String @id @default(uuid())
+  followerId  String
+  followingId String
+  follower    User   @relation("Follower", fields: [followerId], references: [id])
+  following   User   @relation("Following", fields: [followingId], references: [id])
+}
