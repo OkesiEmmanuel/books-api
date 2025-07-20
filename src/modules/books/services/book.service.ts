@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { BookRepository } from '../repositories';
 import {Book} from '@prisma/client';
 import { RedisFacade } from 'src/infrastructure/redis.service';
 import { ApiResponse } from 'src/utils';
+import { CreateCommentDto } from '../dto/create-comment.dto';
 
 
 @Injectable()
@@ -89,5 +90,49 @@ export class BookService {
         // Return success response
         return ApiResponse.success('Book deleted successfully');
 
+    }
+
+    async createComment(bookId: string, dto: CreateCommentDto) {
+        if (!dto.userId || !dto.content) {
+            throw new BadRequestException('User ID and content must be provided.');
+        }
+
+        const book = await this.bookRepo.findById(bookId);
+        if (!book) {
+            throw new NotFoundException('Book not found.');
+        }
+
+        const comment = await this.bookRepo.addComment(bookId, dto.userId, dto.content);
+
+        // Invalidate cached comments for this book
+        await this.redis.del(`book:${bookId}:comments`);
+
+        return ApiResponse.success('Comment added successfully', comment);
+    }
+
+    async getComments(bookId: string, page = 1, limit = 10) {
+        const book = await this.bookRepo.findById(bookId);
+        if (!book) {
+            throw new NotFoundException('Book not found.');
+        }
+
+        const cacheKey = `book:${bookId}:comments:${page}:${limit}`;
+        const cachedComments = await this.redis.get(cacheKey);
+        if (cachedComments) {
+            return JSON.parse(cachedComments);
+        }
+
+        const { comments, total } = await this.bookRepo.getComments(bookId, page, limit);
+
+        await this.redis.set(cacheKey, JSON.stringify({
+            comments,
+            total,
+        }), 3600);
+
+        return ApiResponse.paginated('Comments retrieved successfully', comments, {
+            page,
+            limit,
+            total,
+        });
     }
 }

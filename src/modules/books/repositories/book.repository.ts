@@ -35,4 +35,27 @@ export class BookRepository implements IBookRepository {
     async delete(id: string): Promise<void> {
         await this.prisma.book.delete({ where: { id } });
     }
+
+    async addComment(bookId: string, userId: string, content: string): Promise<Comment> {
+        return this.prisma.comment.create({
+            data: {
+                bookId,
+                userId,
+                content,
+            },
+        });
+    }
+
+    async getComments(bookId: string, page = 1, limit = 10): Promise<{ comments: Comment[]; total: number }> {
+        const comments = await this.prisma.comment.findMany({
+            where: { bookId },
+            skip: (page - 1) * limit,
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+        });
+
+        const total = await this.prisma.comment.count({ where: { bookId } });
+
+        return { comments, total };
+    }
 }
