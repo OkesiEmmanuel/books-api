@@ -169,4 +169,92 @@ export class UserService {
         await this.userRepository.deleteUser(userId);
         return;
     }
+
+    async followUser(followerId: string, followingId: string): Promise<ApiResponse> {
+        if (followerId === followingId) {
+            throw new BadRequestException('You cannot follow yourself.');
+        }
+
+        const follower = await this.userRepository.getUserById(followerId);
+        const following = await this.userRepository.getUserById(followingId);
+
+        if (!follower || !following) {
+            throw new NotFoundException('User not found.');
+        }
+
+        const isAlreadyFollowing = await this.userRepository.isFollowing(followerId, followingId);
+        if (isAlreadyFollowing) {
+            throw new ConflictException('You are already following this user.');
+        }
+
+        await this.userRepository.followUser(followerId, followingId);
+
+        // Invalidate follower/following cache for both users
+        await this.redis.del(`followers:${followingId}`);
+        await this.redis.del(`following:${followerId}`);
+
+        return ApiResponse.success(`You are now following ${followingId}`);
+    }
+
+    async unfollowUser(followerId: string, followingId: string): Promise<ApiResponse> {
+        if (followerId === followingId) {
+            throw new BadRequestException('You cannot unfollow yourself.');
+        }
+
+        const follower = await this.userRepository.getUserById(followerId);
+        const following = await this.userRepository.getUserById(followingId);
+
+        if (!follower || !following) {
+            throw new NotFoundException('User not found.');
+        }
+
+        const isFollowing = await this.userRepository.isFollowing(followerId, followingId);
+        if (!isFollowing) {
+            throw new BadRequestException('You are not following this user.');
+        }
+
+        await this.userRepository.unfollowUser(followerId, followingId);
+
+        // Invalidate follower/following cache for both users
+        await this.redis.del(`followers:${followingId}`);
+        await this.redis.del(`following:${followerId}`);
+
+        return ApiResponse.success(`You have unfollowed ${followingId}`);
+    }
+
+    async getFollowers(userId: string, page = 1, limit = 10): Promise<ApiResponse> {
+        const cacheKey = `followers:${userId}:page:${page}:limit:${limit}`;
+        const cached = await this.redis.get(cacheKey);
+        if (cached) {
+            return ApiResponse.success('Followers fetched successfully (cached)', JSON.parse(cached));
+        }
+
+        const user = await this.userRepository.getUserById(userId);
+        if (!user) {
+            throw new NotFoundException('User not found.');
+        }
+
+        const followers = await this.userRepository.getFollowers(userId, page, limit);
+        await this.redis.set(cacheKey, JSON.stringify(followers), 600);
+
+        return ApiResponse.success('Followers fetched successfully', followers);
+    }
+
+    async getFollowing(userId: string, page = 1, limit = 10): Promise<ApiResponse> {
+        const cacheKey = `following:${userId}:page:${page}:limit:${limit}`;
+        const cached = await this.redis.get(cacheKey);
+        if (cached) {
+            return ApiResponse.success('Following list fetched successfully (cached)', cached);
+        }
+
+        const user = await this.userRepository.getUserById(userId);
+        if (!user) {
+            throw new NotFoundException('User not found.');
+        }
+
+        const following = await this.userRepository.getFollowing(userId, page, limit);
+        await this.redis.set(cacheKey, JSON.stringify(following), 600);
+
+        return ApiResponse.success('Following list fetched successfully', following);
+    }
 }

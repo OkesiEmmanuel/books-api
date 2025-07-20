@@ -8,13 +8,17 @@ generator client {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  username  String   @unique
-  password  String
-  books     Book[]
-  comments  Comment[]
-  followers Follower[] @relation("Follower")
-  following Follower[] @relation("Following")
+  id         String     @id @default(uuid())
+  username   String     @unique
+  firstName  String
+  lastName   String
+  email      String
+  phoneNumber String
+  password   String
+  books      Book[]
+  comments   Comment[]
+  followers  Follower[] @relation("FollowersRelation")
+  following  Follower[] @relation("FollowingRelation")
 }
 
 model Book {
@@ -37,9 +41,14 @@ model Comment {
 }
 
 model Follower {
-  id          String @id @default(uuid())
-  followerId  String
-  followingId String
-  follower    User   @relation("Follower", fields: [followerId], references: [id])
-  following   User   @relation("Following", fields: [followingId], references: [id])
+  id           String @id @default(uuid())
+  followerId   String
+  followingId  String
+
+  follower     User   @relation("FollowingRelation", fields: [followerId], references: [id])
+  following    User   @relation("FollowersRelation", fields: [followingId], references: [id])
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
 }

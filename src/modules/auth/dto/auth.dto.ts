@@ -22,12 +22,6 @@ export class CreateUserDto {
     @IsString()
     lastName: string;
 
-    @ApiProperty({ description: 'location of the user' })
-    @IsNotEmpty()
-    @IsString()
-    location: string;
-
-
     @ApiProperty({ description: 'Username of the user' })
     @IsNotEmpty()
     @IsString()
